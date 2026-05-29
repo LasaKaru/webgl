@@ -329,8 +329,8 @@ const Game = {
   state: 'loading',            // loading|menu|settings|mp|howto|playing|paused|over
   settings: { quality:'med', shadows:true, sens:1.2, volume:0.6, fov:75*Math.PI/180, density:120, hills:60 },
   scene:null, engine:null, camera:null, light:null, shadowGen:null,
-  player:null, playerData:null,
-  enemies:[], items:[], eBullets:[],
+  player:null, playerData:null, playerRig:null, aimFov:null,
+  enemies:[], items:[], eBullets:[], corpses:[],
   yaw:0, pitch:0.35, vy:0, grounded:true,
   score:0, wave:0, waveActive:false, enemiesToSpawn:0,
   weapons:null, currentWeapon:0, inventory:[],
@@ -525,26 +525,149 @@ function buildWorld(scene,density,shadows){
 }
 
 /* =====================================================================
-   PLAYER
+   CHARACTERS — articulated low-poly humanoid rig + procedural animation
+   A reusable human-shaped figure (head, torso, two arms with elbows,
+   two legs with knees) built from boxes parented to joint pivots, so
+   each joint can be posed every frame. Used for the player and every
+   enemy. Swappable later for a rigged glTF via BABYLON.SceneLoader
+   (the game systems don't care what the visual is) — see README.
+   ===================================================================== */
+function charMat(scene,name,r,g,b,em){
+  const m=new BABYLON.StandardMaterial(name,scene);
+  m.diffuseColor=new BABYLON.Color3(r,g,b);
+  m.specularColor=new BABYLON.Color3(0.05,0.05,0.05);
+  if(em) m.emissiveColor=new BABYLON.Color3(em[0],em[1],em[2]);
+  return m;
+}
+function jbox(scene,name,w,h,d,parent,py,mat){
+  const b=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
+  b.position.y=py; b.parent=parent; b.material=mat; return b;
+}
+// pal: { skin:[r,g,b], shirt:[r,g,b], pants:[r,g,b], em:[r,g,b] }
+function buildHumanoid(scene,pal){
+  const skin =charMat(scene,'skin', pal.skin[0],pal.skin[1],pal.skin[2],pal.em);
+  const shirt=charMat(scene,'shirt',pal.shirt[0],pal.shirt[1],pal.shirt[2],pal.em);
+  const pants=charMat(scene,'pants',pal.pants[0],pal.pants[1],pal.pants[2],pal.em);
+
+  const root=new BABYLON.TransformNode('charRoot',scene);
+  const hips=new BABYLON.TransformNode('hips',scene); hips.parent=root; hips.position.y=0.9;
+  jbox(scene,'pelvis',0.5,0.3,0.28,hips,0,pants);
+
+  // spine + head
+  const torso=new BABYLON.TransformNode('torso',scene); torso.parent=hips; torso.position.y=0.1;
+  jbox(scene,'chest',0.55,0.6,0.3,torso,0.3,shirt);
+  const neck=new BABYLON.TransformNode('neck',scene); neck.parent=torso; neck.position.y=0.62;
+  jbox(scene,'head',0.34,0.36,0.34,neck,0.2,skin);
+
+  // limbs share a builder; meshes hang downward from each joint pivot
+  function arm(side){ // side: +1 right, -1 left
+    const sh=new BABYLON.TransformNode('shoulder',scene); sh.parent=torso; sh.position.set(side*0.36,0.55,0);
+    jbox(scene,'upperarm',0.16,0.42,0.16,sh,-0.21,shirt);
+    const el=new BABYLON.TransformNode('elbow',scene); el.parent=sh; el.position.y=-0.42;
+    jbox(scene,'forearm',0.15,0.4,0.15,el,-0.2,skin);
+    const hand=jbox(scene,'hand',0.17,0.17,0.17,el,-0.42,skin);
+    return {sh,el,hand};
+  }
+  function leg(side){
+    const hp=new BABYLON.TransformNode('hipJ',scene); hp.parent=hips; hp.position.set(side*0.14,0,0);
+    jbox(scene,'thigh',0.19,0.46,0.21,hp,-0.23,pants);
+    const kn=new BABYLON.TransformNode('knee',scene); kn.parent=hp; kn.position.y=-0.46;
+    jbox(scene,'shin',0.17,0.46,0.18,kn,-0.23,pants);
+    const foot=jbox(scene,'foot',0.18,0.12,0.34,kn,-0.46,skin); foot.position.z=0.08;
+    return {hp,kn};
+  }
+  const aR=arm(1), aL=arm(-1), lR=leg(1), lL=leg(-1);
+
+  return { root, hips, torso, neck,
+    shoulderR:aR.sh, elbowR:aR.el, handR:aR.hand,
+    shoulderL:aL.sh, elbowL:aL.el, handL:aL.hand,
+    hipR:lR.hp, kneeR:lR.kn, hipL:lL.hp, kneeL:lL.kn,
+    phase:Math.random()*6.28, mats:[skin,shirt,pants], em:pal.em };
+}
+
+// Pose the rig for this frame. st: {moving,run,speed,aiming,attack(0..1|null)}
+function animateHumanoid(rig,dt,st){
+  rig.phase += st.moving ? dt*(6 + (st.speed||0)*1.1) : dt*1.4;
+  const ph=rig.phase;
+  const swing = st.moving ? Math.sin(ph)*(st.run?0.85:0.5) : Math.sin(ph)*0.04;
+
+  // legs — opposite swing, knees bend on the back-swing
+  rig.hipL.rotation.x =  swing;  rig.hipR.rotation.x = -swing;
+  rig.kneeL.rotation.x = Math.max(0,-swing)*0.9;
+  rig.kneeR.rotation.x = Math.max(0, swing)*0.9;
+  // subtle torso lean / breathe
+  rig.torso.rotation.y = Math.sin(ph*0.5)*0.03;
+  rig.torso.rotation.x = st.moving ? 0.08 : 0;
+
+  if(st.aiming){
+    // both hands up, rifle leveled forward
+    rig.shoulderR.rotation.set(-1.4, 0, -0.12);
+    rig.shoulderL.rotation.set(-1.2, 0, 0.42);
+    rig.elbowR.rotation.x=-0.15; rig.elbowL.rotation.x=-0.65;
+  } else if(st.attack!=null){
+    // overhand melee swing with the right arm
+    const a=Math.sin(Math.min(1,st.attack)*Math.PI);
+    rig.shoulderR.rotation.set(-1.9*a - swing*(1-a), 0, 0);
+    rig.elbowR.rotation.x=-0.4*a;
+    rig.shoulderL.rotation.set(swing,0,0.1); rig.elbowL.rotation.x=0.2;
+  } else {
+    // relaxed counter-swing
+    rig.shoulderL.rotation.set(-swing,0,0.08);
+    rig.shoulderR.rotation.set( swing,0,-0.08);
+    rig.elbowL.rotation.x=0.15; rig.elbowR.rotation.x=0.15;
+  }
+}
+
+// Billboarded HP bar that floats above an enemy (dark backing + colored fill).
+function buildHealthBar(scene,parent,y){
+  const back=BABYLON.MeshBuilder.CreatePlane('hpback',{width:1.0,height:0.14},scene);
+  back.parent=parent; back.position.y=y; back.billboardMode=BABYLON.Mesh.BILLBOARDMODE_ALL;
+  back.isPickable=false;
+  const bm=charMat(scene,'hpbg',0.04,0.05,0.04); bm.disableLighting=true; bm.alpha=0.75; back.material=bm;
+  const fill=BABYLON.MeshBuilder.CreatePlane('hpfill',{width:0.94,height:0.08},scene);
+  fill.parent=back; fill.position.z=-0.01; fill.isPickable=false;
+  const fm=charMat(scene,'hpf',0.6,0.9,0.3); fm.disableLighting=true; fill.material=fm;
+  return { back, fill, fm, width:0.94 };
+}
+function updateHealthBar(hb,ratio){
+  ratio=Math.max(0,Math.min(1,ratio));
+  hb.fill.scaling.x=ratio;
+  hb.fill.position.x=-(1-ratio)*hb.width/2;
+  const c=new BABYLON.Color3(1-ratio*0.45, 0.25+ratio*0.65, 0.18);
+  hb.fm.emissiveColor=c; hb.fm.diffuseColor=c;
+}
+
+/* =====================================================================
+   PLAYER — invisible collision capsule + visible humanoid rig
    ===================================================================== */
 function buildPlayer(scene){
   const body=BABYLON.MeshBuilder.CreateCapsule('player',{height:1.8,radius:0.4},scene);
   body.position.set(0,1.0,0);
-  body.material=lowPolyMat(scene,'pbody',0.2,0.6,0.85,{emissive:[0.02,0.08,0.1]});
   body.checkCollisions=true;
   body.ellipsoid=new BABYLON.Vector3(0.5,0.9,0.5);
   body.ellipsoidOffset=new BABYLON.Vector3(0,0,0);
-  // a little "gun" mesh held out front for visual feedback
-  const gun=BABYLON.MeshBuilder.CreateBox('gun',{width:0.18,height:0.18,depth:0.8},scene);
-  gun.position.set(0.35,0.3,0.6); gun.parent=body; gun.material=lowPolyMat(scene,'gunm',0.1,0.1,0.1);
-  // muzzle flash sprite
-  const flash=BABYLON.MeshBuilder.CreatePlane('flash',{size:0.6},scene);
-  flash.position.set(0.35,0.3,1.1); flash.parent=body;
+  body.isVisible=false; // collision volume only
+
+  const rig=buildHumanoid(scene,{ skin:[0.85,0.68,0.55], shirt:[0.15,0.45,0.52],
+    pants:[0.17,0.2,0.26], em:[0.02,0.06,0.07] });
+  rig.root.parent=body; rig.root.position.y=-0.95; // feet at the capsule's base
+  // the player can't shoot itself: exclude its own meshes from the fire ray
+  rig.root.getChildMeshes().forEach(m=>{ m.isPickable=false; });
+  Game.playerRig=rig;
+
+  // rifle held in the right hand
+  const gun=BABYLON.MeshBuilder.CreateBox('gun',{width:0.12,height:0.14,depth:0.7},scene);
+  gun.parent=rig.handR; gun.position.set(0,-0.05,0.28); gun.isPickable=false;
+  gun.material=lowPolyMat(scene,'gunm',0.08,0.08,0.09);
+  // muzzle flash at the barrel tip (name starts with "flash" so the ray ignores it)
+  const flash=BABYLON.MeshBuilder.CreatePlane('flash',{size:0.5},scene);
+  flash.parent=gun; flash.position.set(0,0,0.45); flash.isPickable=false;
   const fm=new BABYLON.StandardMaterial('fm',scene);
-  fm.emissiveColor=new BABYLON.Color3(1,0.7,0.2); fm.opacityTexture=null; fm.disableLighting=true;
+  fm.emissiveColor=new BABYLON.Color3(1,0.7,0.2); fm.disableLighting=true; fm.backFaceCulling=false;
   flash.material=fm; flash.isVisible=false;
   body._flash=flash;
-  if(Game.shadowGen) Game.shadowGen.addShadowCaster(body);
+
+  if(Game.shadowGen) rig.root.getChildMeshes().forEach(m=>Game.shadowGen.addShadowCaster(m));
   return body;
 }
 
@@ -557,7 +680,7 @@ function buildPlayer(scene){
    visual node parented to the (hidden) collision capsule.
    ===================================================================== */
 function spawnEnemy(scene,shadows){
-  // the collision capsule IS the container; visuals are parented to it
+  // the collision capsule IS the container; the humanoid rig is parented to it
   const a=rand(0,Math.PI*2), dist=rand(30,55);
   const px=Game.player.position.x+Math.cos(a)*dist;
   const pz=Game.player.position.z+Math.sin(a)*dist;
@@ -569,36 +692,42 @@ function spawnEnemy(scene,shadows){
   body.position.set(cx,terrainHeight(cx,cz)+0.95,cz);
   body.checkCollisions=true;
   body.ellipsoid=new BABYLON.Vector3(0.55,0.95,0.55);
-  body.isVisible=false; // capsule hidden; box visuals on top
+  body.isVisible=false; // capsule is the hit volume; rig is the visual
 
-  // visual node so we can bob/waddle the whole figure
-  const vis=new BABYLON.TransformNode('evis',scene); vis.parent=body;
-  const torso=BABYLON.MeshBuilder.CreateBox('etorso',{width:0.8,height:1.1,depth:0.5},scene);
-  torso.position.y=0.05; torso.parent=vis;
-  const head=BABYLON.MeshBuilder.CreateBox('ehead',{size:0.5},scene);
-  head.position.set(0,0.9,0); head.parent=vis;
-  // legs (read the walk cycle)
-  const legL=BABYLON.MeshBuilder.CreateBox('eleg',{width:0.26,height:0.7,depth:0.26},scene);
-  legL.position.set(-0.2,-0.85,0); legL.parent=vis;
-  const legR=BABYLON.MeshBuilder.CreateBox('eleg',{width:0.26,height:0.7,depth:0.26},scene);
-  legR.position.set(0.2,-0.85,0); legR.parent=vis;
+  const pal = ranged
+    ? { skin:[0.78,0.6,0.42], shirt:[0.72,0.5,0.12], pants:[0.28,0.22,0.12], em:[0.14,0.08,0.0] }
+    : { skin:[0.6,0.52,0.5],  shirt:[0.62,0.14,0.12], pants:[0.22,0.13,0.13], em:[0.14,0.0,0.0] };
+  const rig=buildHumanoid(scene,pal);
+  rig.root.parent=body; rig.root.position.y=-0.95;
 
-  const baseCol = ranged ? [0.85,0.55,0.12] : [0.7,0.15,0.12];
-  const baseEm  = ranged ? [0.2,0.1,0.0]   : [0.15,0.0,0.0];
-  const mat=lowPolyMat(scene,'ene',baseCol[0],baseCol[1],baseCol[2],{emissive:baseEm});
-  torso.material=mat; head.material=mat; legL.material=mat; legR.material=mat;
+  if(shadows&&Game.shadowGen) rig.root.getChildMeshes().forEach(m=>Game.shadowGen.addShadowCaster(m));
 
-  if(shadows&&Game.shadowGen){ Game.shadowGen.addShadowCaster(torso); Game.shadowGen.addShadowCaster(head); }
+  // ranged enemies carry a rifle in the right hand
+  if(ranged){
+    const g=BABYLON.MeshBuilder.CreateBox('egun',{width:0.1,height:0.12,depth:0.6},scene);
+    g.parent=rig.handR; g.position.set(0,-0.05,0.25); g.isPickable=false;
+    g.material=lowPolyMat(scene,'egunm',0.08,0.08,0.09);
+  }
+
+  const hb=buildHealthBar(scene,body,1.5);
 
   const hpBase = ranged ? 45 : 60;
-  const e={ body, vis, legL, legR, ranged,
+  const e={ body, rig, hb, ranged, dead:false,
             hp:hpBase+Game.wave*8, maxHp:hpBase+Game.wave*8,
             speed:(ranged?2.0:2.4+Game.wave*0.15)+rand(0,0.6),
-            atkCd:rand(0.5,1.5), walkT:rand(0,6.28), mat,
-            baseEm:new BABYLON.Color3(baseEm[0],baseEm[1],baseEm[2]) };
-  torso._enemy=e; head._enemy=e; body._enemy=e; legL._enemy=e; legR._enemy=e;
+            atkCd:rand(0.5,1.5), attackT:null,
+            baseEms:rig.mats.map(m=>m.emissiveColor.clone()) };
+  // tag the hit volume + rig meshes with a backref for the fire ray
+  rig.root.getChildMeshes().forEach(m=>m._enemy=e); body._enemy=e;
   Game.enemies.push(e);
   return e;
+}
+// brief red flash on the whole figure when hit
+function flashEnemyHit(e){
+  const red=new BABYLON.Color3(0.85,0.25,0.18);
+  e.rig.mats.forEach(m=>m.emissiveColor=red);
+  setTimeout(()=>{ if(e.dead) return;
+    e.rig.mats.forEach((m,i)=>{ if(e.baseEms[i]) m.emissiveColor=e.baseEms[i].clone(); }); },90);
 }
 
 function enemyFire(e){
@@ -730,11 +859,9 @@ function tryShoot(now){
   const hit=Game.scene.pickWithRay(ray,m=>m.isPickable!==false && m!==Game.player && !m.name.startsWith('flash'));
   if(hit && hit.pickedMesh){
     const e=hit.pickedMesh._enemy;
-    if(e){
-      e.hp-=w.dmg; flashHitmark(); sfx('hit');
-      e.mat.emissiveColor=new BABYLON.Color3(0.6,0.1,0.1);
-      setTimeout(()=>{ if(e.mat) e.mat.emissiveColor=e.baseEm.clone(); },80);
-      if(e.hp<=0) killEnemy(e);
+    if(e && !e.dead){
+      e.hp-=w.dmg; flashHitmark(); sfx('hit'); flashEnemyHit(e);
+      if(e.hp<=0) killEnemy(e); else updateHealthBar(e.hb, e.hp/e.maxHp);
     }
   }
   if(w.auto && Game.mouseDown){ /* handled in loop */ }
@@ -749,12 +876,18 @@ function reload(){
   }, w.reloadMs);
 }
 function killEnemy(e){
-  Game.score+=100; sfx('kill');
+  Game.score+=100; sfx('kill'); e.dead=true;
   if(Math.random()<0.35){
     const type=Math.random()<0.5?'ammo':'medkit';
     spawnItem(Game.scene,type,e.body.position.x,e.body.position.z);
   }
-  e.body.dispose(false,true); // dispose children too
+  // detach the rig as a falling corpse, then drop the collision capsule (+ HP bar)
+  const fy=e.body.rotation.y, fx=e.body.position.x, fz=e.body.position.z;
+  e.rig.root.setParent(null);
+  e.body.dispose(false,true);
+  e.rig.root.rotation.set(0,fy,0);
+  e.rig.root.position.set(fx, terrainHeight(fx,fz), fz); // feet on the ground
+  Game.corpses.push({ root:e.rig.root, t:0 });
   Game.enemies=Game.enemies.filter(x=>x!==e);
   updateHUD();
 }
@@ -779,7 +912,8 @@ function resetGame(){
   Game.enemies.forEach(e=>{ e.body.dispose(false,true); });
   Game.items.forEach(it=>it.mesh.dispose());
   Game.eBullets.forEach(b=>b.mesh.dispose());
-  Game.enemies=[]; Game.items=[]; Game.eBullets=[]; Game.score=0; Game.wave=0; Game.waveActive=false;
+  Game.corpses.forEach(c=>c.root.dispose());
+  Game.enemies=[]; Game.items=[]; Game.eBullets=[]; Game.corpses=[]; Game.score=0; Game.wave=0; Game.waveActive=false;
   Game.player.position.set(0,terrainHeight(0,0)+1.0,0); Game.vy=0;
   Game.weapons=defaultWeapons(); Game.currentWeapon=0;
   Game.playerData={hp:100,stamina:100};
@@ -830,46 +964,55 @@ function updateGame(dt,now){
   const gh=terrainHeight(p.position.x,p.position.z)+1.0;
   if(p.position.y<=gh){ p.position.y=gh; Game.vy=0; Game.grounded=true; }
 
+  /* drive the player's humanoid rig + aim-down-sights FOV */
+  const paim = Game.mouseDown || (now-lastShot<180);
+  if(len>0 || paim) p.rotation.y=Game.yaw;        // face aim/move direction
+  animateHumanoid(Game.playerRig, dt, { moving:len>0, run:sprinting, speed, aiming:paim, attack:null });
+  const baseFov=Game.settings.fov, tgtFov=paim?baseFov*0.82:baseFov;
+  Game.aimFov = (Game.aimFov==null)?baseFov:(Game.aimFov+(tgtFov-Game.aimFov)*Math.min(1,dt*10));
+  Game.camera.fov=Game.aimFov;
+
   /* auto / single fire */
   if(Game.mouseDown){
     const w=Game.weapons[Game.currentWeapon];
     if(w.auto) tryShoot(now);
   }
 
-  /* enemies AI */
+  /* enemies AI + procedural animation */
   for(const e of Game.enemies){
     const dx=p.position.x-e.body.position.x, dz=p.position.z-e.body.position.z;
     const d=Math.hypot(dx,dz);
     const nx=d>0.001?dx/d:0, nz=d>0.001?dz/d:0;
     e.body.rotation.y=Math.atan2(nx,nz);
+    let moving=false, run=false;
 
     if(e.ranged){
-      // keep a firing distance band; shoot on cooldown with line of sight
-      let move=0;
-      if(d>22) move=1; else if(d<12) move=-1;
-      if(move!==0){
-        e.body.moveWithCollisions(new BABYLON.Vector3(nx*e.speed*move*dt,0,nz*e.speed*move*dt));
-        e.walkT+=dt*8;
-      }
+      // hold a firing distance band, shoot on cooldown
+      let mv=0; if(d>22) mv=1; else if(d<12) mv=-1;
+      if(mv!==0){ e.body.moveWithCollisions(new BABYLON.Vector3(nx*e.speed*mv*dt,0,nz*e.speed*mv*dt)); moving=true; }
       e.atkCd-=dt;
       if(e.atkCd<=0 && d<32){ e.atkCd=rand(1.4,2.2); enemyFire(e); }
     } else {
-      if(d>1.8){
-        e.body.moveWithCollisions(new BABYLON.Vector3(nx*e.speed*dt,0,nz*e.speed*dt));
-        e.walkT+=dt*9;
-      } else {
-        e.atkCd-=dt;
-        if(e.atkCd<=0){ e.atkCd=1.0; damagePlayer(8+Game.wave); }
-      }
+      if(d>1.8){ e.body.moveWithCollisions(new BABYLON.Vector3(nx*e.speed*dt,0,nz*e.speed*dt)); moving=true; run=e.speed>3.1; }
+      else { e.atkCd-=dt; if(e.atkCd<=0){ e.atkCd=1.0; e.attackT=0; damagePlayer(8+Game.wave); } }
     }
 
-    // glue to terrain + procedural walk animation (bob + waddle + leg swing)
+    // melee swing timer (plays the attack animation over ~0.45s)
+    let atk=null;
+    if(e.attackT!=null){ e.attackT+=dt/0.45; if(e.attackT>=1) e.attackT=null; else atk=e.attackT; }
+
+    // glue to terrain, drive the humanoid rig + floating HP bar
     e.body.position.y = terrainHeight(e.body.position.x,e.body.position.z)+0.95;
-    const swing=Math.sin(e.walkT);
-    e.vis.position.y = Math.abs(Math.sin(e.walkT))*0.08;
-    e.vis.rotation.z = swing*0.06;
-    e.legL.rotation.x = swing*0.6;
-    e.legR.rotation.x = -swing*0.6;
+    animateHumanoid(e.rig, dt, { moving, run, speed:e.speed, aiming:e.ranged && d<32, attack:atk });
+    updateHealthBar(e.hb, e.hp/e.maxHp);
+  }
+
+  /* corpses — fall over, sink, then clean up */
+  for(const c of [...Game.corpses]){
+    c.t+=dt;
+    c.root.rotation.x = Math.min(Math.PI/2, c.t*5);
+    c.root.position.y -= dt*0.25;
+    if(c.t>1.3){ c.root.dispose(); Game.corpses=Game.corpses.filter(x=>x!==c); }
   }
 
   /* enemy projectiles */

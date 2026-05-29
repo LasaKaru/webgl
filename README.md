@@ -50,13 +50,14 @@ production hardening checklist.
 ## What's implemented
 - **State machine:** loading → studio splash → menu → settings / multiplayer / how-to → playing → paused → game over.
 - **Loading screen** with animated Heleo2 Studio mark, progress bar, and "Powered by Heleo2 Studio".
-- **Third-person controller:** orbit camera (pointer-lock), camera-relative WASD, gravity, jump, sprint+stamina, collision via `moveWithCollisions`, and **terrain-following** over hills.
+- **Human-like characters:** the player and every enemy are **articulated humanoid rigs** (head, torso, two arms with elbows + hands, two legs with knees + feet) built from boxes parented to joint pivots, driven by a **procedural animation system** — walk/run cycles with leg + arm counter-swing and knee bend, idle breathing, a two-handed **aim** pose, and an overhand **melee swing**. (Drop-in swappable for a rigged glTF via `BABYLON.SceneLoader`.)
+- **Third-person controller:** orbit camera (pointer-lock), camera-relative WASD, gravity, jump, sprint+stamina, collision via `moveWithCollisions`, **terrain-following** over hills, the player figure holding a rifle, and **aim-down-sights FOV** zoom while firing.
 - **Procedural low-poly world:** a **hilly heightfield terrain** (sum-of-waves, flattened around spawn), boundary walls, fog, multi-tier trees, polyhedron rocks, houses with pyramid roofs, doors, and **PBR transparent glass** windows. All props sit on the terrain surface. Density and hill amplitude are settings.
 - **Combat:** raycast hit detection through the crosshair, spread, two weapons (semi-auto pistol, full-auto rifle), magazines + reserve ammo, reload, muzzle flash, hitmarkers, screen hit-flash.
 - **Enemies (two archetypes):**
-  - *Chasers* (red) — rush the player and melee on a cooldown.
-  - *Gunners* (amber, from wave 2) — hold a firing distance band and shoot **tracer projectiles** you can dodge.
-  - Both have a lightweight **procedural walk animation** (bob, waddle, swinging legs) and scale HP/speed/count per wave; loot drops on death.
+  - *Chasers* (red) — rush the player and play a melee swing animation on a cooldown.
+  - *Gunners* (amber, from wave 2) — carry a rifle, hold a firing distance band, and shoot **tracer projectiles** you can dodge.
+  - Both are fully animated humanoids with a **floating health bar**, scale HP/speed/count per wave, flash red on hit, drop loot on death, and **fall over as a corpse** that fades out.
 - **Wave system:** clear all hostiles to advance; score tracking.
 - **Inventory:** grid UI, equip weapons, use medkits (+HP) and ammo (+reserve), auto-render on pickup.
 - **Settings (live):** graphics quality (hardware scaling), shadows on/off, mouse sensitivity, master volume, FOV, world density, terrain hill amplitude.
@@ -74,11 +75,13 @@ README.md      # this file
 ## Known MVP limits (good next steps)
 - Terrain is a procedural heightfield with manual surface-clamping (not full mesh
   collision). Swap in `CreateGroundFromHeightMap` + real physics for slope sliding.
-- Enemies use chase/standoff AI with primitive-mesh procedural animation. Import rigged
-  glTF characters with skeletons via `BABYLON.SceneLoader` for real animations + pathfinding.
+- Characters are articulated box-rig humanoids with hand-authored procedural animation.
+  For production, import rigged glTF characters with skeletons + baked clips via
+  `BABYLON.SceneLoader` and blend them through an `AnimationGroup` state machine; the
+  `animateHumanoid()` call site is the only thing that would change.
+- Enemies use chase/standoff AI (no pathfinding around obstacles yet).
 - Multiplayer is a position relay (not authoritative); add server-side validation,
-  snapshot interpolation, and rooms.
-- Player is a primitive capsule; swap in a rigged glTF character model.
+  snapshot interpolation, and rooms. Remote peers are still simple capsules.
 
 ---
 
