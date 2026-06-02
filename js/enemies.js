@@ -22,7 +22,7 @@ function spawnEnemy(scene,shadows){
   rig.root.parent=body; rig.root.position.y=-0.95;
   if(shadows&&Game.shadowGen) rig.root.getChildMeshes().forEach(m=>Game.shadowGen.addShadowCaster(m));
 
-  if(ranged){
+  if(ranged && !rig.gltf){
     const gm=buildGunModel(scene,'rifle');
     gm.root.parent=rig.handR; gm.root.position.set(0,-0.04,0.24);
   }

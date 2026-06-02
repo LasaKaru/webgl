@@ -18,6 +18,11 @@ function jbox(scene,name,w,h,d,parent,py,mat){
 }
 // pal: { skin:[r,g,b], shirt:[r,g,b], pants:[r,g,b], em:[r,g,b] }
 function buildHumanoid(scene,pal){
+  // prefer a rigged glTF clone when the asset loaded; fall back to the box rig
+  if(Game.gltf && Game.gltf.ready){
+    try{ return instantiateGltfRig(scene); }
+    catch(e){ console.warn('glTF instance failed, procedural fallback:', e); }
+  }
   const skin =charMat(scene,'skin', pal.skin[0],pal.skin[1],pal.skin[2],pal.em);
   const shirt=charMat(scene,'shirt',pal.shirt[0],pal.shirt[1],pal.shirt[2],pal.em);
   const pants=charMat(scene,'pants',pal.pants[0],pal.pants[1],pal.pants[2],pal.em);
@@ -58,6 +63,7 @@ function buildHumanoid(scene,pal){
 
 // Pose the rig for this frame. st: {moving,run,speed,aiming,attack(0..1|null)}
 function animateHumanoid(rig,dt,st){
+  if(rig.gltf){ driveGltfAnim(rig,st); return; }
   rig.phase += st.moving ? dt*(6 + (st.speed||0)*1.1) : dt*1.4;
   const ph=rig.phase;
   const swing = st.moving ? Math.sin(ph)*(st.run?0.85:0.5) : Math.sin(ph)*0.04;

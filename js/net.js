@@ -47,7 +47,7 @@ function syncPeers(list){
     animateHumanoid(peer.rig, 0.016, { moving:true, run:false, speed:4, aiming:false, attack:null });
   }
 }
-function removePeer(id){ const p=Game.net.peers[id]; if(p){ p.body.dispose(false,true); p.rig.root.dispose(); delete Game.net.peers[id]; } }
+function removePeer(id){ const p=Game.net.peers[id]; if(p){ if(p.rig.gltf) stopGltfRig(p.rig); p.body.dispose(false,true); p.rig.root.dispose(); delete Game.net.peers[id]; } }
 function clearPeers(){ Object.keys(Game.net.peers).forEach(removePeer); }
 function setNetUI(on){
   ['netDot','hudNet'].forEach(id=>$(id).classList.toggle('on',on));

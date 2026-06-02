@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/verdant.css">
 <script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
 </head>
 <body>
 <canvas id="renderCanvas"></canvas>
@@ -40,7 +41,7 @@
 <div id="menu" class="layer center vignette">
   <div class="wrap">
     <div class="title">VERDANT</div>
-    <div class="subtitle">Open-World Survival // MVP Build 0.4</div>
+    <div class="subtitle">Open-World Survival // MVP Build 0.5</div>
     <div class="menu-btns">
       <button class="mbtn" data-act="play">Start Mission</button>
       <button class="mbtn" data-act="settings">Settings</button>
@@ -187,6 +188,7 @@
 
 <!-- ===== GAME MODULES (classic scripts, dependency order) ===== -->
 <script src="js/core.js"></script>
+<script src="js/gltf.js"></script>
 <script src="js/terrain.js"></script>
 <script src="js/world.js"></script>
 <script src="js/characters.js"></script>

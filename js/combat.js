@@ -67,6 +67,7 @@ function killEnemy(e){
     spawnItem(Game.scene,type,e.body.position.x,e.body.position.z);
   }
   const fy=e.body.rotation.y, fx=e.body.position.x, fz=e.body.position.z;
+  if(e.rig.gltf) stopGltfRig(e.rig);
   e.rig.root.setParent(null);
   e.body.dispose(false,true);
   e.rig.root.rotation.set(0,fy,0);

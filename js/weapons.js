@@ -79,6 +79,8 @@ function buildGunModel(scene,type){
 function equipWeaponModel(){
   const rig=Game.playerRig; if(!rig) return;
   if(Game.heldModel){ Game.heldModel.root.dispose(); Game.heldModel=null; }
+  // glTF avatars have no exposed hand socket — skip the held model (raycast fire still works)
+  if(rig.gltf){ Game.player._flash=null; return; }
   const w=Game.weapons[Game.currentWeapon];
   const gm=buildGunModel(Game.scene, w.model);
   gm.root.parent=rig.handR;

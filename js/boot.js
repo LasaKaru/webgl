@@ -22,6 +22,10 @@ async function boot(){
   const sun=new BABYLON.DirectionalLight('sun',new BABYLON.Vector3(-0.5,-1,-0.4),scene);
   sun.position=new BABYLON.Vector3(60,80,60); sun.intensity=1.1; Game.light=sun;
 
+  // try to load rigged glTF characters before anything spawns (falls back silently)
+  $('loadTask').textContent='LOADING CHARACTER MODELS';
+  await loadCharacterAssets(scene);
+
   const steps=[
     ['INITIALIZING ENGINE', ()=>{}],
     ['CONFIGURING SHADOWS', ()=>{

@@ -61,7 +61,7 @@ Weapons start locked except the pistol — find SMG, rifle and shotgun crates in
 ## What's implemented
 - **State machine:** loading → studio splash → menu → settings / multiplayer / how-to → playing → paused → game over.
 - **Loading screen** with animated Heleo2 Studio mark, progress bar, and "Powered by Heleo2 Studio".
-- **Human-like characters:** the player and every enemy are **articulated humanoid rigs** (head, torso, two arms with elbows + hands, two legs with knees + feet) built from boxes parented to joint pivots, driven by a **procedural animation system** — walk/run cycles with leg + arm counter-swing and knee bend, idle breathing, a two-handed **aim** pose, and an overhand **melee swing**. (Drop-in swappable for a rigged glTF via `BABYLON.SceneLoader`.)
+- **Human-like characters (rigged glTF + fallback):** characters load from a **rigged, skinned glTF** with skeletal animation clips (Idle / Walk / Run), cloned per character via `instantiateModelsToScene`. If the loader plugin or the asset CDN is unavailable, the game **transparently falls back** to an **articulated box-rig humanoid** (head, torso, two arms with elbows + hands, two legs with knees + feet on joint pivots) driven by a procedural animation system — walk/run cycles with limb counter-swing and knee bend, idle breathing, a two-handed **aim** pose, and an overhand **melee swing**. Either way the gameplay code is identical (`buildHumanoid` / `animateHumanoid` switch internally). Point `GLTF_CFG` in `js/gltf.js` at your own model to reskin everyone.
 - **Third-person controller:** orbit camera (pointer-lock), camera-relative WASD, gravity, jump, sprint+stamina, collision via `moveWithCollisions`, **terrain-following** over hills, the player figure holding a rifle, and **aim-down-sights FOV** zoom while firing.
 - **Procedural low-poly world:** a **hilly heightfield terrain** (sum-of-waves, flattened around spawn) carpeted with **thousands of instanced grass blades** (single draw call, toggleable), boundary walls, fog, multi-tier trees, polyhedron rocks, houses with pyramid roofs, doors, and **PBR transparent glass** windows. All props sit on the terrain surface. Density, hills and grass are settings.
 - **Four real gun models:** **pistol, SMG, rifle, shotgun** — each a multi-part low-poly mesh (slide/body, barrel, magazine, grip, stock, sights) held in the player's hand and rebuilt on weapon switch. Distinct stats: fire rate, spread, damage, magazine, reload; the shotgun fires **8 pellets** per shot.
@@ -88,6 +88,7 @@ Weapons start locked except the pistol — find SMG, rifle and shotgun crates in
 index.html        # shell: UI markup + ordered <script> includes
 css/verdant.css   # all styling
 js/core.js        # global state, DOM helpers, math utils, audio, screen-shake
+js/gltf.js        # rigged glTF character loader + clip mapping (fallback aware)
 js/terrain.js     # procedural heightfield (terrainHeight)
 js/world.js       # materials, props, instanced grass, world build
 js/characters.js  # humanoid rig + procedural animation + health bars
@@ -123,6 +124,9 @@ package.json      # 'ws' dependency + run scripts
   engine); wire up Babylon's Havok/Ammo plugin for real wheel physics.
 - Death "ragdoll" is a procedural topple, not a physics ragdoll (that needs a physics
   engine + skeleton).
+- glTF characters need the loaders plugin + reachable asset CDN; otherwise the
+  procedural rig is used. The glTF avatar has no hand socket wired, so it shows no
+  held gun (firing still works) — map a hand bone in `js/gltf.js` to attach weapons.
 - Grass is decorative thin-instances (no wind/LOD); large counts cost fill-rate on
   weak GPUs — toggle it off in Settings.
 - Multiplayer is a position relay (not authoritative); add server-side validation,
