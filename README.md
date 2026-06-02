@@ -1,9 +1,13 @@
 # VERDANT — Third-Person WebGL Survival (MVP)
 
-A complete, runnable third-person shooter MVP built on **Babylon.js**, by *Heleo2 Studio*.
-Loading screen → studio splash → main menu → settings → gameplay, with a low-poly
-procedural **hilly** jungle, two enemy archetypes, two guns, an inventory, a HUD,
-pause/game-over, and an optional real-time multiplayer mode.
+A complete, runnable third-person open-world survival shooter built on **Babylon.js**,
+by *Heleo2 Studio*. Loading screen → studio splash → main menu → settings → gameplay,
+with a low-poly procedural **hilly jungle + instanced grass**, animated human-like
+characters, **four real gun models you pick up in the world**, throwable **grenades**,
+health packs, an inventory, a HUD, pause/game-over, and an optional multiplayer mode.
+
+The codebase is organized as a small **modular project** (`css/` + `js/` split into
+~14 single-responsibility modules) rather than one giant file — see *Project structure*.
 
 > **Note on engines:** the brief asked for Babylon.js **and** three.js. They're
 > competing engines — using both just doubles the download for zero benefit, so this
@@ -18,8 +22,10 @@ pause/game-over, and an optional real-time multiplayer mode.
 
 ### Single-player (no install)
 Just open `index.html` in any modern browser (Chrome/Edge/Firefox). Babylon.js loads
-from CDN, so you need an internet connection on first load. Click **Start Mission**,
-then click the canvas to lock the mouse.
+from CDN, so you need an internet connection on first load. The game is split into
+multiple files but uses **classic ordered `<script>` includes (not ES modules)**, so
+double-clicking `index.html` works on `file://` — no server required. Click **Start
+Mission**, then click the canvas to lock the mouse.
 
 > Tip: if your browser blocks pointer-lock/audio on `file://`, serve it locally with
 > `npm start` (uses `npx serve`) or any static server, then open the printed URL.
@@ -39,11 +45,14 @@ production hardening checklist.
 ## Controls
 | Key | Action | Key | Action |
 |---|---|---|---|
-| `W A S D` | Move | `1` / `2` | Pistol / Rifle |
+| `W A S D` | Move | `1`–`4` | Pistol / SMG / Rifle / Shotgun |
 | Mouse | Look / Aim | `R` | Reload |
-| L-Click | Fire | `E` | Pick up loot |
-| `Shift` | Sprint (uses stamina) | `Tab` | Inventory |
-| `Space` | Jump | `Esc` | Pause |
+| L-Click | Fire | `G` | Throw grenade |
+| `Shift` | Sprint (uses stamina) | `E` | Pick up loot |
+| `Space` | Jump | `Tab` | Inventory |
+| `Esc` | Pause | | |
+
+Weapons start locked except the pistol — find SMG, rifle and shotgun crates in the world.
 
 ---
 
@@ -52,25 +61,44 @@ production hardening checklist.
 - **Loading screen** with animated Heleo2 Studio mark, progress bar, and "Powered by Heleo2 Studio".
 - **Human-like characters:** the player and every enemy are **articulated humanoid rigs** (head, torso, two arms with elbows + hands, two legs with knees + feet) built from boxes parented to joint pivots, driven by a **procedural animation system** — walk/run cycles with leg + arm counter-swing and knee bend, idle breathing, a two-handed **aim** pose, and an overhand **melee swing**. (Drop-in swappable for a rigged glTF via `BABYLON.SceneLoader`.)
 - **Third-person controller:** orbit camera (pointer-lock), camera-relative WASD, gravity, jump, sprint+stamina, collision via `moveWithCollisions`, **terrain-following** over hills, the player figure holding a rifle, and **aim-down-sights FOV** zoom while firing.
-- **Procedural low-poly world:** a **hilly heightfield terrain** (sum-of-waves, flattened around spawn), boundary walls, fog, multi-tier trees, polyhedron rocks, houses with pyramid roofs, doors, and **PBR transparent glass** windows. All props sit on the terrain surface. Density and hill amplitude are settings.
-- **Combat:** raycast hit detection through the crosshair, spread, two weapons (semi-auto pistol, full-auto rifle), magazines + reserve ammo, reload, muzzle flash, hitmarkers, screen hit-flash.
+- **Procedural low-poly world:** a **hilly heightfield terrain** (sum-of-waves, flattened around spawn) carpeted with **thousands of instanced grass blades** (single draw call, toggleable), boundary walls, fog, multi-tier trees, polyhedron rocks, houses with pyramid roofs, doors, and **PBR transparent glass** windows. All props sit on the terrain surface. Density, hills and grass are settings.
+- **Four real gun models:** **pistol, SMG, rifle, shotgun** — each a multi-part low-poly mesh (slide/body, barrel, magazine, grip, stock, sights) held in the player's hand and rebuilt on weapon switch. Distinct stats: fire rate, spread, damage, magazine, reload; the shotgun fires **8 pellets** per shot.
+- **World loot (GTA-lite):** weapon crates show the **actual spinning gun model**; health packs, ammo, grenade packs and medkits are scattered across the map. Walk up and press **E** (with a live pickup prompt) to grab them.
+- **Grenades / explosions:** throw with **G** — arc + bounce + fuse, then a radial **AoE explosion** (falloff damage to enemies, self-damage if too close), an expanding flash, and **screen shake**.
+- **Combat:** raycast hit detection through the crosshair, per-weapon spread, magazines + reserve ammo, reload, muzzle flash, hitmarkers, screen hit-flash, and **aim-down-sights FOV** zoom.
 - **Enemies (two archetypes):**
   - *Chasers* (red) — rush the player and play a melee swing animation on a cooldown.
   - *Gunners* (amber, from wave 2) — carry a rifle, hold a firing distance band, and shoot **tracer projectiles** you can dodge.
   - Both are fully animated humanoids with a **floating health bar**, scale HP/speed/count per wave, flash red on hit, drop loot on death, and **fall over as a corpse** that fades out.
 - **Wave system:** clear all hostiles to advance; score tracking.
-- **Inventory:** grid UI, equip weapons, use medkits (+HP) and ammo (+reserve), auto-render on pickup.
-- **Settings (live):** graphics quality (hardware scaling), shadows on/off, mouse sensitivity, master volume, FOV, world density, terrain hill amplitude.
-- **Audio:** procedural WebAudio SFX (fire/hit/kill/reload/pickup/hurt/enemy-fire), volume-linked.
-- **Multiplayer scaffold:** WebSocket client + Node `ws` relay server, JSON protocol, remote-peer avatars.
+- **Inventory:** grid UI listing owned weapons + consumables; equip weapons, use medkits (+HP).
+- **Settings (live):** graphics quality (hardware scaling), shadows on/off, grass on/off, mouse sensitivity, master volume, FOV, world density, terrain hill amplitude.
+- **Audio:** procedural WebAudio SFX (per-gun fire, hit/kill/reload/pickup/hurt/enemy-fire/throw/explosion), volume-linked.
+- **Multiplayer scaffold:** WebSocket client + Node `ws` relay server, JSON protocol; remote peers render as full animated humanoids.
 
-## File layout
+## Project structure
 ```
-index.html     # the entire game (engine, world, systems, UI) — single file
-server.js      # optional Node + ws multiplayer relay
-package.json   # declares the 'ws' dependency + run scripts
-README.md      # this file
+index.html        # shell: UI markup + ordered <script> includes
+css/verdant.css   # all styling
+js/core.js        # global state, DOM helpers, math utils, audio, screen-shake
+js/terrain.js     # procedural heightfield (terrainHeight)
+js/world.js       # materials, props, instanced grass, world build
+js/characters.js  # humanoid rig + procedural animation + health bars
+js/weapons.js     # weapon stats + multi-part gun models + equip
+js/player.js      # player capsule + rig
+js/enemies.js     # chasers, gunners, projectiles, waves
+js/items.js       # world pickups (weapons/health/ammo/grenades) + loot scatter
+js/inventory.js   # inventory grid
+js/combat.js      # raycast guns, grenades, explosions, damage, death
+js/hud.js         # HUD updates, toasts, pickup prompt
+js/net.js         # multiplayer client
+js/game.js        # main loop (camera, movement, AI, pickups, fx)
+js/boot.js        # engine/scene, loading, input, UI wiring, entry point
+server.js         # optional Node + ws multiplayer relay
+package.json      # 'ws' dependency + run scripts
 ```
+> The modules are loaded as ordered classic scripts sharing a global `Game` object —
+> deliberately **not** ES modules, so the game still runs from `file://` without a server.
 
 ## Known MVP limits (good next steps)
 - Terrain is a procedural heightfield with manual surface-clamping (not full mesh
@@ -80,8 +108,10 @@ README.md      # this file
   `BABYLON.SceneLoader` and blend them through an `AnimationGroup` state machine; the
   `animateHumanoid()` call site is the only thing that would change.
 - Enemies use chase/standoff AI (no pathfinding around obstacles yet).
+- Grass is decorative thin-instances (no wind/LOD); large counts cost fill-rate on
+  weak GPUs — toggle it off in Settings.
 - Multiplayer is a position relay (not authoritative); add server-side validation,
-  snapshot interpolation, and rooms. Remote peers are still simple capsules.
+  snapshot interpolation, and rooms.
 
 ---
 
