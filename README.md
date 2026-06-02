@@ -4,7 +4,9 @@ A complete, runnable third-person open-world survival shooter built on **Babylon
 by *Heleo2 Studio*. Loading screen → studio splash → main menu → settings → gameplay,
 with a low-poly procedural **hilly jungle + instanced grass**, animated human-like
 characters, **four real gun models you pick up in the world**, throwable **grenades**,
-health packs, an inventory, a HUD, pause/game-over, and an optional multiplayer mode.
+a **drivable buggy**, a **minimap/radar**, a **day/night cycle**, wandering **NPC
+civilians**, health packs, an inventory, a HUD, pause/game-over, and an optional
+multiplayer mode.
 
 The codebase is organized as a small **modular project** (`css/` + `js/` split into
 ~14 single-responsibility modules) rather than one giant file — see *Project structure*.
@@ -48,7 +50,7 @@ production hardening checklist.
 | `W A S D` | Move | `1`–`4` | Pistol / SMG / Rifle / Shotgun |
 | Mouse | Look / Aim | `R` | Reload |
 | L-Click | Fire | `G` | Throw grenade |
-| `Shift` | Sprint (uses stamina) | `E` | Pick up loot |
+| `Shift` | Sprint (uses stamina) | `E` | Pick up loot / enter-exit vehicle |
 | `Space` | Jump | `Tab` | Inventory |
 | `Esc` | Pause | | |
 
@@ -65,6 +67,11 @@ Weapons start locked except the pistol — find SMG, rifle and shotgun crates in
 - **Four real gun models:** **pistol, SMG, rifle, shotgun** — each a multi-part low-poly mesh (slide/body, barrel, magazine, grip, stock, sights) held in the player's hand and rebuilt on weapon switch. Distinct stats: fire rate, spread, damage, magazine, reload; the shotgun fires **8 pellets** per shot.
 - **World loot (GTA-lite):** weapon crates show the **actual spinning gun model**; health packs, ammo, grenade packs and medkits are scattered across the map. Walk up and press **E** (with a live pickup prompt) to grab them.
 - **Grenades / explosions:** throw with **G** — arc + bounce + fuse, then a radial **AoE explosion** (falloff damage to enemies, self-damage if too close), an expanding flash, and **screen shake**.
+- **Drivable vehicle:** a low-poly buggy (chassis, cabin, four steered/spinning wheels, headlights). Walk up and press **E** to get in; arcade WASD driving with acceleration, reverse, speed-sensitive steering and terrain-following; **run hostiles over** at speed. A chase camera follows while driving; **E** again to get out.
+- **Minimap / radar:** rotating (player-up) HUD radar plotting enemies (red/amber), loot (gold/green), civilians, the vehicle, and remote players.
+- **Day / night cycle:** the sun arcs across the sky with shifting light intensity, warm dawn/dusk tint, and night-blue sky + fog, with a live **HUD clock**. Toggle in Settings.
+- **NPC civilians:** wandering humanoid pedestrians that idle, roam, and **flee from gunfire and nearby enemies** — they add life to the world (non-combatants).
+- **Ragdoll-ish deaths:** killed enemies topple in a random direction with a roll, then sink and fade.
 - **Combat:** raycast hit detection through the crosshair, per-weapon spread, magazines + reserve ammo, reload, muzzle flash, hitmarkers, screen hit-flash, and **aim-down-sights FOV** zoom.
 - **Enemies (two archetypes):**
   - *Chasers* (red) — rush the player and play a melee swing animation on a cooldown.
@@ -92,7 +99,11 @@ js/inventory.js   # inventory grid
 js/combat.js      # raycast guns, grenades, explosions, damage, death
 js/hud.js         # HUD updates, toasts, pickup prompt
 js/net.js         # multiplayer client
-js/game.js        # main loop (camera, movement, AI, pickups, fx)
+js/environment.js # day/night cycle (sun, fog, sky, clock)
+js/vehicle.js     # drivable buggy: build, enter/exit, driving
+js/npc.js         # wandering civilian pedestrians
+js/minimap.js     # 2D radar overlay
+js/game.js        # main loop (camera, driving, AI, pickups, fx)
 js/boot.js        # engine/scene, loading, input, UI wiring, entry point
 server.js         # optional Node + ws multiplayer relay
 package.json      # 'ws' dependency + run scripts
@@ -107,7 +118,11 @@ package.json      # 'ws' dependency + run scripts
   For production, import rigged glTF characters with skeletons + baked clips via
   `BABYLON.SceneLoader` and blend them through an `AnimationGroup` state machine; the
   `animateHumanoid()` call site is the only thing that would change.
-- Enemies use chase/standoff AI (no pathfinding around obstacles yet).
+- Enemies and NPCs use simple steering AI (no navmesh/pathfinding around obstacles yet).
+- The vehicle is arcade-style (kinematic `moveWithCollisions`, no suspension/physics
+  engine); wire up Babylon's Havok/Ammo plugin for real wheel physics.
+- Death "ragdoll" is a procedural topple, not a physics ragdoll (that needs a physics
+  engine + skeleton).
 - Grass is decorative thin-instances (no wind/LOD); large counts cost fill-rate on
   weak GPUs — toggle it off in Settings.
 - Multiplayer is a position relay (not authoritative); add server-side validation,

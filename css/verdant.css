@@ -108,6 +108,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
 .hud-tr{position:absolute;top:20px;right:26px;text-align:right;font-family:'Share Tech Mono',monospace;}
 .hud-tr .wave{font-size:13px;letter-spacing:.3em;color:var(--toxic);text-transform:uppercase;}
 .hud-tr .score{font-size:30px;color:var(--ink);}
+.hud-tr .clock{font-size:13px;color:var(--amber);letter-spacing:.2em;margin-top:2px;}
+.hud-map{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:172px;height:172px;
+  border-radius:50%;border:1px solid var(--line);box-shadow:0 0 18px rgba(0,0,0,.5);overflow:hidden;}
+.hud-map canvas{display:block;width:172px;height:172px;}
 .prompt{position:absolute;bottom:120px;left:50%;transform:translateX(-50%);font-family:'Share Tech Mono',monospace;
   font-size:13px;letter-spacing:.15em;color:var(--ink);background:rgba(0,0,0,.5);border:1px solid var(--line);
   padding:7px 16px;opacity:0;transition:.15s;white-space:nowrap;}

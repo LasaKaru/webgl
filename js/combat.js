@@ -25,6 +25,7 @@ function tryShoot(now){
   if(now-lastShot < w.rof) return;
   if(w.ammo<=0){ if(w.reserve>0) reload(); else toast('OUT OF AMMO'); return; }
   lastShot=now; w.ammo--; refreshAmmoHUD(); sfx(w.sfx);
+  Game.alarm=2.5; // gunfire scares nearby civilians
 
   const fl=Game.player._flash; if(fl){ fl.isVisible=true; setTimeout(()=>fl.isVisible=false,45); }
   if(w.id==='shotgun') addShake(0.18);
@@ -70,7 +71,8 @@ function killEnemy(e){
   e.body.dispose(false,true);
   e.rig.root.rotation.set(0,fy,0);
   e.rig.root.position.set(fx, terrainHeight(fx,fz), fz);
-  Game.corpses.push({ root:e.rig.root, t:0 });
+  // ragdoll-ish: topple in a random direction with a little roll
+  Game.corpses.push({ root:e.rig.root, t:0, yaw:fy, tilt:rand(-0.5,0.5) });
   Game.enemies=Game.enemies.filter(x=>x!==e);
   updateHUD();
 }

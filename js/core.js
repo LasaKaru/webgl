@@ -6,15 +6,17 @@
 
 const Game = {
   state: 'loading',  // loading|menu|settings|mp|howto|playing|paused|over
-  settings: { quality:'med', shadows:true, grass:true, sens:1.2, volume:0.6,
+  settings: { quality:'med', shadows:true, grass:true, cycle:true, sens:1.2, volume:0.6,
               fov:75*Math.PI/180, density:120, hills:60 },
-  scene:null, engine:null, camera:null, light:null, shadowGen:null,
+  scene:null, engine:null, camera:null, light:null, hemi:null, shadowGen:null,
   player:null, playerData:null, playerRig:null, heldModel:null, aimFov:null,
-  enemies:[], items:[], eBullets:[], corpses:[], grenades:[], fx:[],
+  enemies:[], items:[], eBullets:[], corpses:[], grenades:[], fx:[], npcs:[],
+  vehicle:null, inVehicle:false, vehYaw:0,
+  timeOfDay:0.35, daySpeed:1/150, alarm:0,
   yaw:0, pitch:0.35, vy:0, grounded:true,
   score:0, wave:0, waveActive:false, enemiesToSpawn:0,
   weapons:null, currentWeapon:0, inventory:[], grenadeCount:3,
-  keys:{}, mouseDown:false, shake:{t:0,mag:0},
+  keys:{}, mouseDown:false, shake:{t:0,mag:0}, _ePrev:false,
   terrainHills:null,
   net:{ ws:null, connected:false, id:null, name:'Operator', peers:{} },
   audio:null,

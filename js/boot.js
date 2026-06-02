@@ -18,7 +18,7 @@ async function boot(){
 
   const hemi=new BABYLON.HemisphericLight('hemi',new BABYLON.Vector3(0,1,0),scene);
   hemi.intensity=0.65; hemi.diffuse=new BABYLON.Color3(0.8,0.95,0.85);
-  hemi.groundColor=new BABYLON.Color3(0.1,0.18,0.12);
+  hemi.groundColor=new BABYLON.Color3(0.1,0.18,0.12); Game.hemi=hemi;
   const sun=new BABYLON.DirectionalLight('sun',new BABYLON.Vector3(-0.5,-1,-0.4),scene);
   sun.position=new BABYLON.Vector3(60,80,60); sun.intensity=1.1; Game.light=sun;
 
@@ -165,6 +165,10 @@ function bindUI(){
     $('segGrass').querySelectorAll('button').forEach(x=>x.classList.remove('active'));
     b.classList.add('active'); Game.settings.grass=(b.dataset.g==='on');
     if(Game.scene && Game.scene._grass){ Game.scene._grass.setEnabled(Game.settings.grass); }
+  });
+  $('segCycle').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    $('segCycle').querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); Game.settings.cycle=(b.dataset.c==='on');
   });
   const sl=(id,fmt,set)=>{ const el=$(id); el.oninput=()=>{ const v=+el.value; set(v); $(id+'Val').textContent=fmt(v); }; };
   sl('sens', v=>(v/100).toFixed(2), v=>Game.settings.sens=v/100);

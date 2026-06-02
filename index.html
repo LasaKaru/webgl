@@ -40,7 +40,7 @@
 <div id="menu" class="layer center vignette">
   <div class="wrap">
     <div class="title">VERDANT</div>
-    <div class="subtitle">Open-World Survival // MVP Build 0.3</div>
+    <div class="subtitle">Open-World Survival // MVP Build 0.4</div>
     <div class="menu-btns">
       <button class="mbtn" data-act="play">Start Mission</button>
       <button class="mbtn" data-act="settings">Settings</button>
@@ -63,6 +63,8 @@
       <div class="seg" id="segShadow"><button data-s="off">OFF</button><button data-s="on" class="active">ON</button></div></div>
     <div class="row"><label>Grass</label>
       <div class="seg" id="segGrass"><button data-g="off">OFF</button><button data-g="on" class="active">ON</button></div></div>
+    <div class="row"><label>Day / Night Cycle</label>
+      <div class="seg" id="segCycle"><button data-c="off">OFF</button><button data-c="on" class="active">ON</button></div></div>
     <div class="row"><label>Mouse Sensitivity</label>
       <input type="range" id="sens" min="20" max="300" value="120"><span class="val" id="sensVal">1.20</span></div>
     <div class="row"><label>Master Volume</label>
@@ -109,9 +111,10 @@
       <span class="kbd">W A S D</span> Move &nbsp;·&nbsp; <span class="kbd">MOUSE</span> Look / Aim<br>
       <span class="kbd">L-CLICK</span> Fire &nbsp;·&nbsp; <span class="kbd">R</span> Reload &nbsp;·&nbsp; <span class="kbd">SHIFT</span> Sprint<br>
       <span class="kbd">SPACE</span> Jump &nbsp;·&nbsp; <span class="kbd">G</span> Throw Grenade<br>
-      <span class="kbd">1</span>-<span class="kbd">4</span> Weapons &nbsp;·&nbsp; <span class="kbd">E</span> Pick Up &nbsp;·&nbsp; <span class="kbd">TAB</span> Inventory &nbsp;·&nbsp; <span class="kbd">ESC</span> Pause<br><br>
+      <span class="kbd">1</span>-<span class="kbd">4</span> Weapons &nbsp;·&nbsp; <span class="kbd">E</span> Pick Up / Enter Vehicle &nbsp;·&nbsp; <span class="kbd">TAB</span> Inventory &nbsp;·&nbsp; <span class="kbd">ESC</span> Pause<br><br>
       Explore the hilly jungle, loot crates for <b style="color:var(--toxic)">guns, ammo, health and grenades</b>,
-      and survive the waves. Red rushers melee you; amber gunners shoot from range. Clear a wave to advance.
+      hijack the <b style="color:#3fa7ff">buggy</b> to run hostiles down, and survive the waves under a moving
+      <b style="color:var(--amber)">day/night sky</b>. Civilians flee your gunfire. Clear a wave to advance.
     </p>
     <div class="panel-actions"><button class="pbtn" id="howBack">Back</button></div>
   </div>
@@ -163,7 +166,9 @@
   <div class="hud-tr">
     <div class="wave" id="waveLbl">WAVE 01</div>
     <div class="score" id="scoreLbl">0</div>
+    <div class="clock mono" id="clock">12:00</div>
   </div>
+  <div class="hud-map"><canvas id="minimap" width="172" height="172"></canvas></div>
   <div class="hud-br">
     <div class="ammo">
       <div class="wname" id="wName">PISTOL</div>
@@ -193,6 +198,10 @@
 <script src="js/combat.js"></script>
 <script src="js/hud.js"></script>
 <script src="js/net.js"></script>
+<script src="js/environment.js"></script>
+<script src="js/vehicle.js"></script>
+<script src="js/npc.js"></script>
+<script src="js/minimap.js"></script>
 <script src="js/game.js"></script>
 <script src="js/boot.js"></script>
 </body>
