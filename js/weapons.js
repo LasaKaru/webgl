@@ -79,12 +79,9 @@ function buildGunModel(scene,type){
 function equipWeaponModel(){
   const rig=Game.playerRig; if(!rig) return;
   if(Game.heldModel){ Game.heldModel.root.dispose(); Game.heldModel=null; }
-  // glTF avatars have no exposed hand socket — skip the held model (raycast fire still works)
-  if(rig.gltf){ Game.player._flash=null; return; }
   const w=Game.weapons[Game.currentWeapon];
   const gm=buildGunModel(Game.scene, w.model);
-  gm.root.parent=rig.handR;
-  gm.root.position.set(0,-0.04,0.26);
+  rig.attachHand(gm.root);   // works for both procedural hand and glTF hand bone
   gm.root.getChildMeshes && gm.root.getChildMeshes().forEach(m=>m.isPickable=false);
   if(Game.shadowGen) gm.root.getChildMeshes && gm.root.getChildMeshes().forEach(m=>Game.shadowGen.addShadowCaster(m));
   Game.heldModel=gm; Game.player._flash=gm.flash;

@@ -1,6 +1,6 @@
 {
   "name": "verdant-mvp",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "VERDANT - third-person low-poly WebGL survival MVP (Babylon.js) by Heleo2 Studio",
   "scripts": {
     "server": "node server.js",

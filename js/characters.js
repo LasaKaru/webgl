@@ -54,11 +54,14 @@ function buildHumanoid(scene,pal){
   }
   const aR=arm(1), aL=arm(-1), lR=leg(1), lL=leg(-1);
 
-  return { root, hips, torso, neck,
+  const rig = { root, hips, torso, neck,
     shoulderR:aR.sh, elbowR:aR.el, handR:aR.hand,
     shoulderL:aL.sh, elbowL:aL.el, handL:aL.hand,
     hipR:lR.hp, kneeR:lR.kn, hipL:lL.hp, kneeL:lL.kn,
     phase:Math.random()*6.28, mats:[skin,shirt,pants], em:pal.em };
+  // parent a weapon model into the right hand (matches the glTF rig API)
+  rig.attachHand = function(node){ node.parent=this.handR; node.position.set(0,-0.04,0.26); node.rotation.set(0,0,0); };
+  return rig;
 }
 
 // Pose the rig for this frame. st: {moving,run,speed,aiming,attack(0..1|null)}
